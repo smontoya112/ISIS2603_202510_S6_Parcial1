@@ -1,15 +1,25 @@
+package co.edu.uniandes.dse.parcial1.services;
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 
 import co.edu.uniandes.dse.parcial1.entities.EstacionEntity;
 import co.edu.uniandes.dse.parcial1.entities.RutaEntity;
+import co.edu.uniandes.dse.parcial1.exceptions.EntityNotFoundException;
 import co.edu.uniandes.dse.parcial1.services.EstacionService;
 import co.edu.uniandes.dse.parcial1.services.RutaEstacionService;
 import co.edu.uniandes.dse.parcial1.services.RutaService;
+import jakarta.transaction.Transactional;
 import uk.co.jemos.podam.api.PodamFactory;
+import uk.co.jemos.podam.api.PodamFactoryImpl;
 
 @DataJpaTest
 @Transactional
@@ -32,7 +42,7 @@ public class RutaEstacionServiceTest {
 	private RutaEntity ruta = new RutaEntity();
 	private List<RutaEntity> rutaList = new ArrayList<>();
 
-	private EstacionService estacion = new EstacionService();
+	private EstacionEntity estacion = new EstacionEntity();
 	private List<EstacionEntity> estacionList = new ArrayList<>();
     @BeforeEach
 	void setUp() {
@@ -53,28 +63,30 @@ public class RutaEstacionServiceTest {
 		for (int i = 0; i < 3; i++) {
             RutaEntity rutaEntity = factory.manufacturePojo(RutaEntity.class);
             EstacionEntity estacionEntity = factory.manufacturePojo(EstacionEntity.class);
-			entityManager.persist(rutaEntity, estacionEntity);
+			entityManager.persist(rutaEntity);
+            entityManager.persist(estacionEntity);
             rutaList.add(rutaEntity);
             estacionList.add(estacionEntity);
 
 		}
 	}
     @Test
-    void testAddEstacion() {
+    void testAddEstacion() throws Exception {
         EstacionEntity nuevaEstacion = factory.manufacturePojo(EstacionEntity.class);
         entityManager.persist(nuevaEstacion);
         EstacionEntity estacionVieja = rutaEstacionService.addEstacionRuta(nuevaEstacion.getId(), ruta.getId());
         
         assertNotNull(estacionVieja);
         assertEquals(nuevaEstacion.getId(), estacionVieja.getId());
-        assertEquals(nuevaEstacion.getNombre(), estacionVieja.getNombre());
+        assertEquals(nuevaEstacion.getName(), estacionVieja.getName());
         assertEquals(nuevaEstacion.getDireccion(), estacionVieja.getDireccion());
     }
     @Test
     void testAddEstacionInvalida() {
         assertThrows(EntityNotFoundException.class, () -> {
 			EstacionEntity estacion1 = factory.manufacturePojo(EstacionEntity.class);
-			estacion1.setRutas(ruta);
+			estacion1.setRutas(List.of(ruta)
+            );
 			entityManager.persist(estacion1);
 			rutaEstacionService.addEstacionRuta(estacion1.getId(),0L);
 		});
@@ -83,7 +95,7 @@ public class RutaEstacionServiceTest {
     void testAddEstacionRutaInvalida() {
         assertThrows(EntityNotFoundException.class, () -> {
 			RutaEntity ruta1 = factory.manufacturePojo(RutaEntity.class);
-			ruta1.setEstaciones(estacion);
+			ruta1.setEstaciones(List.of(estacion));
 			entityManager.persist(ruta1);
 			rutaEstacionService.addEstacionRuta( 0L, ruta1.getId());
 		});
@@ -109,19 +121,20 @@ public class RutaEstacionServiceTest {
     @Test
     void testRemoveEstacionRuta () throws Exception {
 
-        EstacionEntity estacion1 = factory.manufacturePojo(EstacionEntity.class);
-        EstacionEntity estacionVieja = estacionService.createEstacion(estacion1);
-        rutaEstacionService.addEstacionRuta(estacionVieja.getId(), ruta.getId());
-        rutaEstacionService.removeEstacionRuta(estacionVieja.getId(), ruta.getId());
-        assertEquals(0, rutaEstacionService.getEstacionesRuta(ruta.getId()).size());
-   
+    
+        EstacionEntity estacion2 = factory.manufacturePojo(EstacionEntity.class);
+        estacion2.setRutas(List.of(ruta));
+        entityManager.persist(estacion2);
+        rutaEstacionService.addEstacionRuta(estacion2.getId(),ruta.getId());
+        rutaEstacionService.removeEstacionRuta(estacion2.getId(),ruta.getId());
+        assertNull(ruta.getEstaciones().stream().filter(e->e.getId().equals(estacion2.getId())).findFirst().orElse(null));
     }
     @Test
     void testRemoveEstacionInvalidaRuta()  {
         
         assertThrows(EntityNotFoundException.class, () -> {
 			RutaEntity ruta1 = factory.manufacturePojo(RutaEntity.class);
-			ruta1.setEstaciones(estacion);
+			ruta1.setEstaciones(List.of(estacion));
 			entityManager.persist(ruta1);
 			rutaEstacionService.removeEstacionRuta( 0L, ruta1.getId());
 		});
@@ -130,7 +143,7 @@ public class RutaEstacionServiceTest {
     void testRemoveEstacionRutaInvalida () {
         assertThrows(EntityNotFoundException.class, () -> {
 			EstacionEntity estacion2 = factory.manufacturePojo(EstacionEntity.class);
-			estacion2.setRutas(ruta);
+			estacion2.setRutas(List.of(ruta));
 			entityManager.persist(estacion2);
 			rutaEstacionService.addEstacionRuta(estacion2.getId(),0L);
 		});
